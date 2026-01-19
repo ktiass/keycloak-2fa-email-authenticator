@@ -244,59 +244,65 @@ The authenticator supports multiple email service providers for enhanced flexibi
 | **SendGrid** | SendGrid cloud email service | SendGrid API key and from email |
 | **AWS SES** | Amazon Simple Email Service | AWS credentials, region, and verified sender |
 | **Mailgun** | Mailgun email delivery service | *Coming soon* |
-247:
-248: ---
-249:
-250: ## 🎨 Template Customization
-251:
-252: You can fully customize both the visual appearance (HTML) and the text content of the emails sent by this authenticator.
-253:
-254: ### 1. Customizing the HTML Layout
-255: Customizing the email's visual design (logo, colors, layout):
-256:
-257: **File:** `src/main/resources/theme-resources/templates/html/code-email.ftl`
-258:
-259: You can replace the default FreeMarker template with your own HTML structure:
-260:
-261: ```html
-262: <html>
-263: <body style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
-264:     <div style="background-color: #f5f5f5; padding: 30px; border-radius: 8px; text-align: center;">
-265:         <!-- Add your logo here -->
-266:         <img src="https://your-domain.com/logo.png" alt="Logo" style="height: 50px; margin-bottom: 20px;" />
-267:
-268:         <h2 style="color: #007bff;">Verification Code</h2>
-269:
-270:         <div style="background-color: white; padding: 20px; margin: 20px 0; border: 1px solid #ddd;">
-271:             <h1 style="font-size: 36px; letter-spacing: 5px; margin: 0;">${code}</h1>
-272:         </div>
-273:
-274:         <p>This code will expire in <strong>${ttl}</strong> seconds.</p>
-275:         <p style="font-size: 12px; color: #888;">If you did not request this code, please ignore this email.</p>
-276:     </div>
-277: </body>
-278: </html>
-279: ```
-280:
-281: ### 2. Customizing Text Content (Localization)
-282: Changing the subject line and body text for different languages:
-283:
-284: **File:** `src/main/resources/theme-resources/messages/messages_<lang>.properties`
-285:
-286: **Available placeholders:**
-287: - `{0}` : The generated OTP code
-288: - `{1}` : Time-to-live (expiration time) in seconds/minutes
-289:
-290: **Example (`messages_en.properties`):**
-291: ```properties
-292: # Custom Subject
-293: emailCodeSubject=Your Secure Login Code: {0}
-294:
-295: # Custom Body Text (supports \n for new lines)
-296: emailCodeBody=Here is your one-time password: {0}.\n\nIt is valid for {1} minutes. Do not share this code.
-297: ```
-298:
-299: > **Important:** After making changes to templates or properties, you must **rebuild and redeploy** the project (`mvn clean package`) for changes to take effect.
+
+---
+
+## 🎨 Template Customization
+
+You can fully customize both the visual appearance (HTML) and the text content of the emails sent by this authenticator.
+
+### 1. Customizing the HTML Layout
+
+Customizing the email's visual design (logo, colors, layout):
+
+**File:** `src/main/resources/theme-resources/templates/html/code-email.ftl`
+
+You can replace the default FreeMarker template with your own HTML structure.
+
+**Example HTML Template:**
+
+```html
+<html>
+<body style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+    <div style="background-color: #f5f5f5; padding: 30px; border-radius: 8px; text-align: center;">
+        <!-- Add your logo here -->
+        <img src="https://your-domain.com/logo.png" alt="Logo" style="height: 50px; margin-bottom: 20px;" />
+
+        <h2 style="color: #007bff;">Verification Code</h2>
+
+        <div style="background-color: white; padding: 20px; margin: 20px 0; border: 1px solid #ddd;">
+            <h1 style="font-size: 36px; letter-spacing: 5px; margin: 0;">${code}</h1>
+        </div>
+
+        <p>This code will expire in <strong>${ttl}</strong> seconds.</p>
+        <p style="font-size: 12px; color: #888;">If you did not request this code, please ignore this email.</p>
+    </div>
+</body>
+</html>
+```
+
+### 2. Customizing Text Content (Localization)
+
+Changing the subject line and body text for different languages:
+
+**File:** `src/main/resources/theme-resources/messages/messages_<lang>.properties`
+
+**Available placeholders:**
+- `{0}` : The generated OTP code
+- `{1}` : Time-to-live (expiration time) in seconds/minutes
+
+**Example (`messages_en.properties`):**
+
+```properties
+# Custom Subject
+emailCodeSubject=Your Secure Login Code: {0}
+
+# Custom Body Text (supports \n for new lines)
+emailCodeBody=Here is your one-time password: {0}.\n\nIt is valid for {1} minutes. Do not share this code.
+```
+
+> **Important:** After making changes to templates or properties, you must **rebuild and redeploy** the project (`mvn clean package`) for changes to take effect.
+
 
 #### Configure Email Provider in Authentication Flow
 
