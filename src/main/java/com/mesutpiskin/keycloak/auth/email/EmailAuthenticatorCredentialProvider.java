@@ -36,7 +36,7 @@ public class EmailAuthenticatorCredentialProvider
         if (!supportsCredentialType(credentialType)) {
             return false;
         }
-        return user.credentialManager().getStoredCredentialsByTypeStream(credentialType).findAny().isPresent();
+        return user.getEmail() != null && !user.getEmail().isBlank();
     }
 
     @Override
