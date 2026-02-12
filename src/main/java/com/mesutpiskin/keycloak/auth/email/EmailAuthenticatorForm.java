@@ -327,7 +327,6 @@ public class EmailAuthenticatorForm extends AbstractUsernameFormAuthenticator
         }
     }
 
-    @Override
     protected String disabledByBruteForceError() {
         return Messages.INVALID_ACCESS_CODE;
     }
