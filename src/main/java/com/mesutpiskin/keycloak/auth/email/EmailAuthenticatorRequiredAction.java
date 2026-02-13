@@ -18,7 +18,12 @@ import org.keycloak.models.UserModel;
 import org.keycloak.sessions.AuthenticationSessionModel;
 
 import com.mesutpiskin.keycloak.auth.email.model.EmailMessage;
+import com.mesutpiskin.keycloak.auth.email.model.EmailProviderType;
+import com.mesutpiskin.keycloak.auth.email.service.EmailSender;
+import com.mesutpiskin.keycloak.auth.email.service.EmailSenderFactory;
 import com.mesutpiskin.keycloak.auth.email.service.impl.KeycloakEmailSender;
+
+import org.keycloak.models.AuthenticatorConfigModel;
 
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
@@ -172,34 +177,41 @@ public class EmailAuthenticatorRequiredAction implements RequiredActionProvider,
         KeycloakSession keycloakSession = context.getSession();
         RealmModel realm = context.getRealm();
 
-        int length = EmailConstants.DEFAULT_LENGTH;
-        int ttl = EmailConstants.DEFAULT_TTL;
-        int resendCooldown = EmailConstants.DEFAULT_RESEND_COOLDOWN;
+        Map<String, String> configMap = findAuthenticatorConfig(context);
+
+        int length = resolvePositiveInt(configMap, EmailConstants.CODE_LENGTH, EmailConstants.DEFAULT_LENGTH);
+        int ttl = resolvePositiveInt(configMap, EmailConstants.CODE_TTL, EmailConstants.DEFAULT_TTL);
+        int resendCooldown = resolvePositiveInt(configMap, EmailConstants.RESEND_COOLDOWN,
+                EmailConstants.DEFAULT_RESEND_COOLDOWN);
 
         String code = SecretGenerator.getInstance().randomString(length, SecretGenerator.DIGITS);
 
-        try {
-            Map<String, Object> templateData = new HashMap<>();
-            templateData.put("username", user.getUsername());
-            templateData.put("code", code);
-            templateData.put("ttl", ttl);
+        if (Boolean.parseBoolean(configMap.get(EmailConstants.SIMULATION_MODE))) {
+            logger.infof("***** SIMULATION MODE ***** Setup verification code for user %s is: %s",
+                    user.getUsername(), code);
+        } else {
+            try {
+                Map<String, Object> templateData = new HashMap<>();
+                templateData.put("username", user.getUsername());
+                templateData.put("code", code);
+                templateData.put("ttl", ttl);
 
-            String realmName = realm.getDisplayName() != null ? realm.getDisplayName() : realm.getName();
+                String realmName = realm.getDisplayName() != null ? realm.getDisplayName() : realm.getName();
 
-            EmailMessage message = EmailMessage.builder()
-                    .to(user.getEmail())
-                    .subject(realmName + " access code")
-                    .templateData(templateData)
-                    .build();
+                EmailMessage message = EmailMessage.builder()
+                        .to(user.getEmail())
+                        .subject(realmName + " access code")
+                        .templateData(templateData)
+                        .build();
 
-            KeycloakEmailSender emailSender = new KeycloakEmailSender(keycloakSession, realm, user);
-            emailSender.sendEmail(message);
-        } catch (EmailException e) {
-            logger.errorf(e, "Failed to send setup verification email for user %s", user.getId());
-            context.challenge(context.form()
-                    .setError("email-authenticator-setup-send-error")
-                    .createForm(SETUP_TEMPLATE));
-            return;
+                sendEmail(message, configMap, keycloakSession, realm, user);
+            } catch (EmailException e) {
+                logger.errorf(e, "Failed to send setup verification email for user %s", user.getId());
+                context.challenge(context.form()
+                        .setError("email-authenticator-setup-send-error")
+                        .createForm(SETUP_TEMPLATE));
+                return;
+            }
         }
 
         long now = System.currentTimeMillis();
@@ -208,6 +220,73 @@ public class EmailAuthenticatorRequiredAction implements RequiredActionProvider,
         session.setAuthNote(EmailConstants.CODE_RESEND_AVAILABLE_AFTER, Long.toString(now + (resendCooldown * 1000L)));
 
         challengeVerifyForm(context, null);
+    }
+
+    private void sendEmail(EmailMessage message, Map<String, String> configMap,
+            KeycloakSession session, RealmModel realm, UserModel user) throws EmailException {
+        String providerTypeStr = configMap.getOrDefault(
+                EmailConstants.EMAIL_PROVIDER_TYPE,
+                EmailConstants.DEFAULT_EMAIL_PROVIDER);
+        EmailProviderType providerType = EmailProviderType.fromString(providerTypeStr);
+
+        try {
+            EmailSender emailSender = EmailSenderFactory.createEmailSender(
+                    providerType, configMap, session, realm, user);
+            emailSender.sendEmail(message);
+            logger.infof("Setup verification email sent via %s to %s",
+                    emailSender.getProviderName(), user.getEmail());
+        } catch (EmailException e) {
+            boolean fallbackEnabled = EmailSenderFactory.isFallbackEnabled(configMap);
+            if (fallbackEnabled && providerType != EmailProviderType.KEYCLOAK) {
+                logger.warnf(e, "Primary email provider (%s) failed for setup, falling back to Keycloak SMTP",
+                        providerType.getDisplayName());
+                EmailSender fallbackSender = new KeycloakEmailSender(session, realm, user);
+                fallbackSender.sendEmail(message);
+                logger.infof("Setup verification email sent via fallback Keycloak SMTP to %s", user.getEmail());
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    private Map<String, String> findAuthenticatorConfig(RequiredActionContext context) {
+        RealmModel realm = context.getRealm();
+
+        return realm.getAuthenticationFlowsStream()
+                .flatMap(flow -> realm.getAuthenticationExecutionsStream(flow.getId()))
+                .filter(exec -> EmailAuthenticatorFormFactory.PROVIDER_ID.equals(exec.getAuthenticator()))
+                .map(exec -> {
+                    String configId = exec.getAuthenticatorConfig();
+                    if (configId != null) {
+                        AuthenticatorConfigModel config = realm.getAuthenticatorConfigById(configId);
+                        if (config != null && config.getConfig() != null) {
+                            return config.getConfig();
+                        }
+                    }
+                    return Map.<String, String>of();
+                })
+                .findFirst()
+                .orElse(Map.of());
+    }
+
+    private int resolvePositiveInt(Map<String, String> configValues, String key, int defaultValue) {
+        String raw = configValues.get(key);
+        if (raw == null || raw.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            int parsed = Integer.parseInt(raw.trim());
+            if (parsed <= 0) {
+                logger.warnf("Configuration value for %s was non-positive ('%s'); falling back to default %d",
+                        key, raw, defaultValue);
+                return defaultValue;
+            }
+            return parsed;
+        } catch (NumberFormatException ex) {
+            logger.warnf("Configuration value for %s was invalid ('%s'); falling back to default %d",
+                    key, raw, defaultValue);
+            return defaultValue;
+        }
     }
 
     private void challengeVerifyForm(RequiredActionContext context, String error, Object... errorParams) {
