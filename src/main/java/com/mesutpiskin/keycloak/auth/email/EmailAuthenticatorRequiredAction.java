@@ -35,7 +35,6 @@ public class EmailAuthenticatorRequiredAction implements RequiredActionProvider,
     private static final String VERIFY_TEMPLATE = "email-authenticator-setup-verify-form.ftl";
     private static final Logger logger = Logger.getLogger(EmailAuthenticatorRequiredAction.class);
     private static final String CODE_ATTEMPTS = "emailCodeAttempts";
-    private static final int MAX_CODE_ATTEMPTS = 5;
 
     private enum CodeValidationResult {
         VALID, EXPIRED, INVALID, MISSING
@@ -150,8 +149,11 @@ public class EmailAuthenticatorRequiredAction implements RequiredActionProvider,
                 challengeVerifyForm(context, Messages.MISSING_CODE);
                 break;
             case INVALID:
+                Map<String, String> configMap = findAuthenticatorConfig(context);
+                int maxAttempts = resolvePositiveInt(configMap, EmailConstants.MAX_ATTEMPTS,
+                        EmailConstants.DEFAULT_MAX_ATTEMPTS);
                 int attempts = incrementAttempts(session);
-                if (attempts >= MAX_CODE_ATTEMPTS) {
+                if (attempts >= maxAttempts) {
                     resetSetupCode(session);
                     challengeVerifyForm(context, Messages.TOO_MANY_ATTEMPTS);
                 } else {
