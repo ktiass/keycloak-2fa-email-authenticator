@@ -155,7 +155,10 @@ public class EmailAuthenticatorRequiredAction implements RequiredActionProvider,
                 int attempts = incrementAttempts(session);
                 if (attempts >= maxAttempts) {
                     resetSetupCode(session);
-                    challengeVerifyForm(context, Messages.TOO_MANY_ATTEMPTS);
+                    var form = context.form();
+                    form.setAttribute("maxAttemptsReached", true);
+                    form.setError(Messages.TOO_MANY_ATTEMPTS);
+                    context.challenge(form.createForm(VERIFY_TEMPLATE));
                 } else {
                     challengeVerifyForm(context, Messages.INVALID_CODE);
                 }

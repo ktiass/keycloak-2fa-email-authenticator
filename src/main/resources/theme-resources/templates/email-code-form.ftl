@@ -13,7 +13,8 @@
 
             <div class="${properties.kcInputWrapperClass!}">
                 <input id="emailCode" name="emailCode" autocomplete="off" type="text" class="${properties.kcInputClass!}"
-                       autofocus aria-invalid="<#if messagesPerField.existsError('emailCode')>true</#if>"/>
+                       autofocus aria-invalid="<#if messagesPerField.existsError('emailCode')>true</#if>"
+                       <#if maxAttemptsReached?? && maxAttemptsReached>disabled</#if>/>
 
                 <#if messagesPerField.existsError('emailCode')>
                     <span id="input-error-otp-code" class="${properties.kcInputErrorMessageClass!}"
@@ -32,8 +33,10 @@
 
                 <div id="kc-form-buttons">
                     <div class="${properties.kcFormButtonsWrapperClass!}">
-                        <input class="${properties.kcButtonClass!} ${properties.kcButtonPrimaryClass!} ${properties.kcButtonLargeClass!}" name="login" type="submit" value="${msg("doLogIn")}" />
-                        <input class="${properties.kcButtonClass!} ${properties.kcButtonDefaultClass!} ${properties.kcButtonLargeClass!}" name="resend" type="submit" value="${msg("resendCode")}"/>
+                        <#if !(maxAttemptsReached?? && maxAttemptsReached)>
+                            <input class="${properties.kcButtonClass!} ${properties.kcButtonPrimaryClass!} ${properties.kcButtonLargeClass!}" name="login" type="submit" value="${msg("doLogIn")}" />
+                        </#if>
+                        <input class="${properties.kcButtonClass!} <#if maxAttemptsReached?? && maxAttemptsReached>${properties.kcButtonPrimaryClass!}<#else>${properties.kcButtonDefaultClass!}</#if> ${properties.kcButtonLargeClass!}" name="resend" type="submit" value="${msg("resendCode")}"/>
                         <input class="${properties.kcButtonClass!} ${properties.kcButtonDefaultClass!} ${properties.kcButtonLargeClass!}" name="cancel" type="submit" value="${msg("doCancel")}"/>
                     </div>
                 </div>
